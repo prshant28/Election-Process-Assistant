@@ -1,0 +1,40 @@
+55%
+Problem statement se match
+Concept sahi hai — lekin 3 hard requirements miss hain
+Requirement-by-requirement analysis
+MATCH
+Real-world problem solve karta hai
+Election process samjhana — genuine civic challenge. Tick.
+MATCH
+Moves beyond chat
+RAG pipeline, knowledge base retrieval, safety filter — tools use ho rahe hain.
+MISSING
+Gemini + Google Cloud Agent Builder
+Tumhara app Claude API use karta hai. Problem statement explicitly Gemini + GCP Agent Builder maangta hai.
+MISSING
+Partner MCP Integration
+Koi MCP server integrate nahi hai. Yeh ek hard requirement hai — "must demonstrate meaningful MCP integration."
+PARTIAL
+Multi-step agent planning
+RAG retrieval hai, lekin agent ko autonomously steps plan karne chahiye — tumhara current design simple chat hai.
+MISSING
+Google Cloud deployment
+Replit pe build ho raha hai. GCP pe deploy karna required hai (Cloud Run ya Agent Builder).
+Tumhara project vs. what's needed
+Requirement	Tumhara current plan	Jo chahiye
+AI model	Claude API (Anthropic)	Gemini 1.5 Pro / Flash via Vertex AI
+Build platform	Replit + Next.js	Google Cloud Agent Builder (low-code) + Cloud Run
+MCP partner	Koi nahi	At least 1 partner MCP server (Google Drive, Gmail, Figma, Windsor.ai, etc.)
+Agent type	Simple RAG chatbot	Multi-step tool-using agent with planner loop
+Database	In-memory / SQLite	Cloud-based (Firestore / BigQuery preferred)
+Bottom line: Tera election assistant idea solid hai aur domain sahi hai — lekin judges isko reject kar sakte hain kyunki Gemini use nahi kiya, MCP integration nahi hai, aur GCP Agent Builder use nahi kiya. Yeh teen cheezein non-negotiable hain.
+3 fixes jo tumhara project 95% compliant bana den
+FIX 1
+Claude → Gemini swap karo
+Anthropic SDK hatao, @google-cloud/vertexai ya @google/generative-ai package add karo. System prompt wahi rehega — sirf API call change hoga. 2 ghante ka kaam. ↗
+FIX 2
+Google Drive MCP add karo (partner requirement)
+Tumhare paas Google Drive MCP already connected hai. Agent ko ECI documents Google Drive folder se read karke answer de — yeh meaningful MCP integration ban jaega. ↗
+FIX 3
+GCP Agent Builder pe deploy karo
+Dialogflow CX ya Vertex AI Agent Builder pe agent create karo. Tumhara Next.js app frontend ban sakta hai — backend GCP pe move karo. ↗

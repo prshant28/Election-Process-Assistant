@@ -1,0 +1,546 @@
+You are an expert full-stack developer. Build a complete, production-ready **Election Process Assistant** web application from scratch in this Replit environment.
+
+---
+
+## PROJECT OVERVIEW
+
+Build an interactive web app that helps Indian citizens understand the election process, timelines, voter registration steps, and voting procedures — through an AI-powered chat interface + visual guides.
+
+---
+
+## TECH STACK (use exactly this)
+
+- **Runtime**: Node.js 20
+- **Framework**: Next.js 14 (App Router, TypeScript)
+- **Styling**: Tailwind CSS v3
+- **AI**: Anthropic Claude API (`@anthropic-ai/sdk`) with streaming via Vercel AI SDK (`ai` package)
+- **Vector DB**: In-memory vector store using `vectra` npm package (no external DB needed for Replit)
+- **Database**: SQLite via `better-sqlite3` (file-based, no setup needed)
+- **Fonts**: `next/font/google` — Noto Sans (supports Devanagari for Hindi), Space Mono for code/mono
+- **Icons**: `lucide-react`
+- **Animations**: `framer-motion`
+- **i18n**: `next-intl` (English + Hindi only for MVP)
+
+---
+
+## ENVIRONMENT VARIABLES
+
+Create a `.env.local` file with these placeholders (I will fill them):
+```
+ANTHROPIC_API_KEY=your_key_here
+NEXT_PUBLIC_APP_NAME=ElectionGuide AI
+NEXT_PUBLIC_DEFAULT_LANG=en
+```
+
+---
+
+## FILE STRUCTURE TO CREATE
+
+```
+election-assistant/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx                  # Home: topic cards grid
+│   │   ├── globals.css
+│   │   ├── chat/
+│   │   │   └── page.tsx              # Main AI chat interface
+│   │   ├── timeline/
+│   │   │   └── page.tsx              # Interactive election timeline
+│   │   ├── guide/
+│   │   │   └── [topic]/
+│   │   │       └── page.tsx          # Step-by-step voter guides
+│   │   └── api/
+│   │       ├── chat/
+│   │       │   └── route.ts          # Claude streaming endpoint
+│   │       └── search/
+│   │           └── route.ts          # Semantic search endpoint
+│   ├── components/
+│   │   ├── chat/
+│   │   │   ├── ChatInterface.tsx
+│   │   │   ├── MessageBubble.tsx
+│   │   │   └── SuggestedQuestions.tsx
+│   │   ├── timeline/
+│   │   │   ├── ElectionTimeline.tsx
+│   │   │   └── PhaseCard.tsx
+│   │   ├── guide/
+│   │   │   └── StepFlow.tsx
+│   │   └── ui/
+│   │       ├── Navbar.tsx
+│   │       ├── LanguageSwitcher.tsx
+│   │       └── StateSelector.tsx
+│   ├── lib/
+│   │   ├── ai/
+│   │   │   ├── systemPrompt.ts       # Master system prompt
+│   │   │   ├── ragPipeline.ts        # In-memory RAG
+│   │   │   └── safetyFilter.ts       # Block political opinions
+│   │   ├── data/
+│   │   │   └── electionKnowledge.ts  # Hardcoded knowledge base
+│   │   └── utils.ts
+│   └── types/
+│       └── index.ts
+├── public/
+├── .env.local
+├── next.config.ts
+├── tailwind.config.ts
+└── package.json
+```
+
+---
+
+## DETAILED IMPLEMENTATION REQUIREMENTS
+
+### 1. HOME PAGE (`src/app/page.tsx`)
+
+A clean, modern landing page with:
+- Hero section: "समझिए भारत का चुनाव प्रक्रिया" (with English subtitle)
+- 6 topic cards in a responsive grid, each with icon, title, short description, and a "Learn More" button:
+  1. Voter Registration — how to register on rolls
+  2. Election Timeline — phases from announcement to result
+  3. Voting Day Guide — what to do on polling day
+  4. EVM & VVPAT — how voting machines work
+  5. Counting & Results — how votes are counted
+  6. Model Code of Conduct — rules during election period
+- "Ask AI" floating button (bottom-right) that routes to /chat
+- Color scheme: Deep navy (#1a3f8f) primary, saffron (#FF9933) accent, white background
+
+### 2. CHAT PAGE (`src/app/chat/page.tsx` + components)
+
+Full-featured chat interface:
+- **ChatInterface.tsx**: 
+  - Message history with user/bot differentiation
+  - Auto-scroll to latest message
+  - Streaming response display (token by token)
+  - Shows "ElectionGuide is thinking..." skeleton while loading
+  - Mobile-responsive (full height on mobile)
+
+- **MessageBubble.tsx**:
+  - User messages: right-aligned, navy background
+  - Bot messages: left-aligned, light gray, with bot avatar (ballot box emoji styled)
+  - Render markdown: bold, bullet lists, numbered lists, inline code
+  - Show source citation badge if RAG context was used (e.g. "Source: Voter Registration Guide")
+
+- **SuggestedQuestions.tsx**:
+  - Show on first load and when conversation has < 2 messages
+  - 6 suggested questions as tap-friendly chips:
+    - "How do I register to vote?"
+    - "What documents do I need on voting day?"
+    - "How does the EVM work?"
+    - "When is the election in my state?"
+    - "What is NOTA?"
+    - "How are votes counted?"
+
+### 3. API ROUTE (`src/app/api/chat/route.ts`)
+
+Streaming Claude API endpoint:
+```typescript
+// POST /api/chat
+// Body: { messages: Message[], state?: string }
+// Returns: streaming text response
+
+import { anthropic } from '@anthropic-ai/sdk'
+import { StreamingTextResponse, AnthropicStream } from 'ai'
+import { getSystemPrompt } from '@/lib/ai/systemPrompt'
+import { getRAGContext } from '@/lib/ai/ragPipeline'
+import { isSafeQuery } from '@/lib/ai/safetyFilter'
+
+export async function POST(req: Request) {
+  const { messages, state } = await req.json()
+  
+  // Safety check
+  const lastMessage = messages[messages.length - 1].content
+  if (!isSafeQuery(lastMessage)) {
+    return new Response("I can only help with election process information, not political opinions or candidate recommendations.", { status: 200 })
+  }
+  
+  // RAG: get relevant knowledge chunks
+  const context = await getRAGContext(lastMessage)
+  
+  // Build system prompt with context
+  const systemPrompt = getSystemPrompt(context, state)
+  
+  // Call Claude with streaming
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: messages,
+    stream: true,
+  })
+  
+  const stream = AnthropicStream(response)
+  return new StreamingTextResponse(stream)
+}
+```
+
+### 4. SYSTEM PROMPT (`src/lib/ai/systemPrompt.ts`)
+
+```typescript
+export function getSystemPrompt(ragContext: string, state?: string): string {
+  return `You are ElectionGuide AI — a friendly, accurate, and politically neutral assistant that helps Indian citizens understand the election process.
+
+## YOUR ROLE
+- Explain election procedures, timelines, voter rights, and processes
+- Help users understand voter registration, voting day procedures, EVM/VVPAT, counting process
+- Provide state-specific information when the user's state is known (current state: ${state || 'not specified'})
+- Always cite your sources (e.g., "According to ECI guidelines...")
+
+## STRICT RULES — NEVER VIOLATE
+1. NEVER recommend any political party, candidate, or electoral alliance
+2. NEVER express opinions on political issues or government policies
+3. NEVER predict election outcomes or share polling data
+4. If asked for political opinions, say: "I'm here to explain the election process, not share political views. For that, please refer to news sources."
+5. Always recommend official sources: eci.gov.in, nvsp.in, voterportal.eci.gov.in
+
+## RESPONSE FORMAT
+- Use simple, clear language (Class 8 reading level)
+- Use numbered steps for procedures
+- Use bullet points for lists of items/rules
+- Bold important terms and deadlines
+- End responses with a relevant follow-up question to guide the user
+- Keep responses under 250 words unless a detailed explanation is explicitly requested
+
+## KNOWLEDGE CONTEXT (use this to answer accurately)
+${ragContext}
+
+## TONE
+Helpful, patient, like a knowledgeable friend — not a government bureaucrat. Use "aap" style formal but warm tone.`
+}
+```
+
+### 5. KNOWLEDGE BASE (`src/lib/data/electionKnowledge.ts`)
+
+Create a comprehensive in-memory knowledge base with at least 15 detailed entries covering:
+
+```typescript
+export const electionKnowledge = [
+  {
+    id: 'voter-registration-1',
+    title: 'Voter Registration Process',
+    content: `Complete step-by-step voter registration process in India:
+    
+    ELIGIBILITY: Indian citizen, 18+ years old as of January 1st of the qualifying year, ordinarily resident at the address in the constituency.
+    
+    METHOD 1 - ONLINE via NVSP (nvsp.in):
+    1. Visit voterportal.eci.gov.in or nvsp.in
+    2. Click "New Registration (Form 6)"
+    3. Fill personal details: name, DOB, address, mobile
+    4. Upload documents: photo (recent passport size), age proof (Aadhaar/birth certificate), address proof
+    5. Submit and note your reference number
+    6. Track status using reference number
+    
+    METHOD 2 - OFFLINE via BLO:
+    1. Collect Form 6 from nearest Electoral Registration Office or BLO (Booth Level Officer)
+    2. Fill form with BLACK ink
+    3. Attach self-attested copies of age proof and address proof + 1 passport photo
+    4. Submit to BLO or ERO office
+    
+    DEADLINE: Must register 30 days before election date. Check state-specific dates.
+    
+    DOCUMENTS NEEDED: Any one age proof (Aadhaar, PAN, birth certificate, school leaving certificate, passport), any one address proof (Aadhaar, utility bill, bank passbook, ration card)
+    
+    VOTER ID CARD: Physical card issued within 6-8 weeks. Can vote with digital copy on DigiLocker too.`,
+    tags: ['registration', 'voter id', 'form 6', 'nvsp', 'BLO'],
+  },
+  {
+    id: 'voting-day-1', 
+    title: 'Voting Day Complete Guide',
+    content: `Everything you need to know about voting day:
+    
+    WHAT TO BRING: Your EPIC (Voter ID card) OR any ONE of: Aadhaar, passport, driving licence, PAN card, MNREGA job card, bank/post office passbook with photo, health insurance smart card, pension document with photo, NPR smart card, official identity documents issued by Central/State government.
+    
+    POLLING BOOTH TIMINGS: Generally 7 AM to 6 PM (may vary by state/constituency). Check your booth's specific timing on eci.gov.in or your state EC website.
+    
+    FINDING YOUR BOOTH: Go to eci.gov.in → "Know Your Polling Booth" → Enter EPIC number or details.
+    
+    AT THE BOOTH:
+    1. Join the correct queue (separate queues for men/women/senior citizens in many states)
+    2. Show your ID to the polling officer
+    3. Officer will verify your name in the electoral roll
+    4. Your left index finger will be marked with indelible ink
+    5. You'll receive a ballot slip — take it to the EVM
+    6. Press the button next to your chosen candidate's name and symbol
+    7. VVPAT will show a slip for 7 seconds confirming your vote
+    8. Vote is cast. You'll get a voter slip as proof.
+    
+    IMPORTANT RIGHTS:
+    - You CANNOT be turned away if your name is on the rolls
+    - Polling agents cannot tell you who to vote for inside the booth
+    - The booth must be accessible — ask for help if needed
+    - Senior citizens (80+) and disabled voters get priority/home voting in some states`,
+    tags: ['voting', 'polling booth', 'EVM', 'VVPAT', 'documents'],
+  },
+  {
+    id: 'evm-vvpat-1',
+    title: 'EVM and VVPAT Explained',
+    content: `Electronic Voting Machine (EVM) and Voter Verifiable Paper Audit Trail (VVPAT):
+    
+    WHAT IS AN EVM: A standalone battery-operated electronic device that records votes. Cannot be connected to internet or any network. Has two units: Control Unit (with polling officer) and Balloting Unit (where you vote).
+    
+    HOW IT WORKS:
+    1. Balloting Unit shows candidate names + party symbols + button
+    2. You press button next to your choice
+    3. A beep confirms vote recorded
+    4. Control Unit shows total votes cast (not which way)
+    
+    WHAT IS VVPAT: A printer attached to EVM that prints a paper slip showing:
+    - Serial number of candidate
+    - Candidate name  
+    - Party symbol
+    You see this slip for 7 seconds through a glass window. It then falls into a sealed compartment.
+    
+    IS IT SECURE: EVMs are:
+    - Manufactured only by BEL and ECIL (government companies)
+    - Standalone — no WiFi, no Bluetooth, no internet port
+    - Tested and sealed before elections
+    - Randomized allocation to constituencies
+    - Stored in strong rooms with CCTV and multi-party surveillance
+    
+    NOTA OPTION: "None of the Above" button available. If you want to reject all candidates, press NOTA (usually last button).`,
+    tags: ['EVM', 'VVPAT', 'electronic voting', 'NOTA', 'security'],
+  },
+  {
+    id: 'election-phases-1',
+    title: 'Indian Election Process Phases',
+    content: `Complete Indian General Election (Lok Sabha) process phases:
+    
+    PHASE 1 — ELECTION ANNOUNCEMENT (Day 0):
+    Election Commission announces election schedule. Model Code of Conduct (MCC) immediately comes into effect.
+    
+    PHASE 2 — VOTER ROLL REVISION (ongoing before announcement):
+    Final electoral rolls published. Last date to add/correct name.
+    
+    PHASE 3 — NOMINATION (Day 1-7 after schedule):
+    Candidates file nomination papers at Returning Officer's office. Each candidate needs proposers from constituency.
+    
+    PHASE 4 — SCRUTINY (Day 8):
+    Returning Officer checks all nominations for validity.
+    
+    PHASE 5 — WITHDRAWAL (Day 9-10):
+    Candidates can withdraw before this deadline. Final candidate list published.
+    
+    PHASE 6 — CAMPAIGN PERIOD (Day 11 to Day -2):
+    Parties and candidates campaign. Subject to MCC rules. Campaign ends 48 hours before polling (silence period).
+    
+    PHASE 7 — POLLING DAY:
+    Voting happens. Results of exit polls cannot be published during silence period.
+    
+    PHASE 8 — COUNTING DAY:
+    Usually 2-4 days after polling. ECI announces counting date. Agents from all parties present.
+    
+    PHASE 9 — RESULT DECLARATION:
+    Returning Officer declares winner. Loser can file election petition in High Court within 45 days.
+    
+    PHASE 10 — OATH TAKING:
+    Winning candidate takes oath as MP/MLA within stipulated time.`,
+    tags: ['election phases', 'process', 'timeline', 'nomination', 'counting'],
+  },
+  {
+    id: 'model-code-1',
+    title: 'Model Code of Conduct',
+    content: `Model Code of Conduct (MCC) — Rules during election period:
+    
+    WHAT IS MCC: Voluntary guidelines evolved by consensus among political parties. Enforced by Election Commission once election schedule is announced.
+    
+    WHEN IT APPLIES: From date of election announcement until final results declared.
+    
+    RULES FOR POLITICAL PARTIES AND CANDIDATES:
+    - Cannot use government resources (vehicles, buildings, staff) for campaign
+    - Cannot make promises that affect election results (freebies debate ongoing)
+    - Cannot appeal to voters on basis of religion, caste, community
+    - Cannot bribe voters (money, gifts, liquor)
+    - Cannot threaten or intimidate voters
+    - Rallies need prior permission from police
+    
+    RULES FOR GOVERNMENT:
+    - Cannot announce new welfare schemes after MCC kicks in
+    - Cannot transfer officials involved in election duty without EC permission
+    - Ministers cannot use official machinery for campaign
+    
+    FOR VOTERS:
+    - You can report MCC violations to cVIGIL app (launch, take photo/video, submit — response within 100 minutes)
+    - Voter bribery: taking money to vote is also illegal
+    
+    IMPORTANT: MCC is quasi-legal — EC can act but cannot imprison. Violations may lead to candidate disqualification in extreme cases.`,
+    tags: ['MCC', 'model code', 'election rules', 'campaign', 'cVIGIL'],
+  },
+  {
+    id: 'counting-results-1',
+    title: 'Vote Counting and Results',
+    content: `How votes are counted and results declared:
+    
+    BEFORE COUNTING:
+    - EVMs kept in sealed strong rooms with CCTV surveillance
+    - Multi-party observers present 24/7
+    - Counting agents from all candidates get passes
+    
+    ON COUNTING DAY:
+    1. Strong room opened in presence of candidates/agents and Returning Officer
+    2. EVMs brought to counting hall
+    3. Counting done in rounds — each table counts one EVM at a time
+    4. Results of each round announced publicly
+    5. Running totals updated on ECI website in real-time
+    
+    VVPAT VERIFICATION:
+    - Mandatory random VVPAT verification: 5 EVMs per assembly constituency
+    - If VVPAT count matches EVM count: result stands
+    - If mismatch: VVPAT count is final (paper over electronic)
+    
+    WINNING:
+    - Candidate with most votes wins (First Past The Post system — no minimum percentage needed)
+    - Tie: decided by lot (draw) by Returning Officer
+    - Winner gets election certificate
+    
+    AFTER RESULT:
+    - Losing candidate can file election petition in High Court within 45 days
+    - Grounds: corrupt practices, wrong acceptance/rejection of nominations, improper count
+    
+    TRACKING LIVE: ECI website (results.eci.gov.in), Doordarshan, all major news channels.`,
+    tags: ['counting', 'results', 'strong room', 'VVPAT verification', 'election petition'],
+  },
+]
+```
+
+Add 9 more entries covering: postal ballot, NRI voting, voter ID correction, disability provisions, booth capturing offences, election expenditure limits, exit polls rules, SVEEP program, and overseas voters.
+
+### 6. RAG PIPELINE (`src/lib/ai/ragPipeline.ts`)
+
+Simple cosine-similarity in-memory RAG (no external vector DB):
+
+```typescript
+import { electionKnowledge } from '@/lib/data/electionKnowledge'
+
+// Simple keyword + TF-IDF scoring (no external embedding API needed)
+export async function getRAGContext(query: string): Promise {
+  const queryTerms = query.toLowerCase().split(' ').filter(w => w.length > 3)
+  
+  const scored = electionKnowledge.map(doc => {
+    const text = (doc.title + ' ' + doc.content + ' ' + doc.tags.join(' ')).toLowerCase()
+    const score = queryTerms.reduce((acc, term) => {
+      const count = (text.match(new RegExp(term, 'g')) || []).length
+      return acc + count
+    }, 0)
+    return { doc, score }
+  })
+  
+  const topDocs = scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2)
+    .filter(d => d.score > 0)
+  
+  if (topDocs.length === 0) return ''
+  
+  return topDocs.map(d => 
+    `[Source: ${d.doc.title}]\n${d.doc.content}`
+  ).join('\n\n---\n\n')
+}
+```
+
+### 7. SAFETY FILTER (`src/lib/ai/safetyFilter.ts`)
+
+```typescript
+const BLOCKED_PATTERNS = [
+  /which party (should|to) vote/i,
+  /vote for (bjp|congress|aap|sp|bsp|tmc|dmk|aiadmk)/i,
+  /is (bjp|congress|aap|modi|rahul|kejriwal) (better|good|bad)/i,
+  /(best|worst) (party|candidate|politician)/i,
+  /who (will|should) win/i,
+  /election (prediction|forecast)/i,
+  /opinion on (government|policy|scheme)/i,
+]
+
+export function isSafeQuery(message: string): boolean {
+  return !BLOCKED_PATTERNS.some(pattern => pattern.test(message))
+}
+```
+
+### 8. ELECTION TIMELINE PAGE (`src/app/timeline/page.tsx`)
+
+Visual interactive timeline with:
+- Header: "भारतीय चुनाव प्रक्रिया की समयरेखा"
+- 10 timeline phases rendered as vertical cards (mobile) or horizontal scroll (desktop)
+- Each phase card has:
+  - Phase number + name
+  - Duration (e.g. "7 days")
+  - What Election Commission does
+  - What voters should do
+  - Color-coded status: upcoming (blue), active (green), completed (gray)
+- Click on any phase → expand to show detailed information + FAQ for that phase
+- Framer Motion animations: cards slide in on scroll
+
+### 9. VOTER GUIDE PAGE (`src/app/guide/[topic]/page.tsx`)
+
+Multi-step guided flow for topics: register, vote, results, evm
+
+- Progress bar showing step X of Y
+- Each step has: illustration (use SVG/emoji art), title, explanation, action items
+- "Mark as done" button to proceed
+- Mobile-first, large tap targets
+- Summary card at the end with all steps completed
+
+### 10. UI DESIGN SYSTEM
+
+Apply these design tokens consistently:
+```css
+/* globals.css additions */
+:root {
+  --navy: #1a3f8f;
+  --navy-light: #2952b3;
+  --saffron: #FF9933;
+  --saffron-light: #FFB366;
+  --green: #138808;
+  --white: #ffffff;
+  --gray-50: #f8f9fa;
+  --gray-100: #f1f3f4;
+  --gray-600: #5f6368;
+  --gray-900: #202124;
+  
+  /* Typography */
+  --font-heading: 'Noto Sans', sans-serif;
+  --font-body: 'Noto Sans', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+}
+```
+
+Navbar: white background, navy text, saffron accent on active links. Mobile: hamburger menu.
+
+---
+
+## WHAT TO BUILD — STEP BY STEP
+
+Execute in this exact order:
+1. Create `package.json` and install all dependencies
+2. Create `next.config.ts`, `tailwind.config.ts`, `.env.local`
+3. Create `src/types/index.ts` with all TypeScript interfaces
+4. Create `src/lib/data/electionKnowledge.ts` with all 15 knowledge entries
+5. Create `src/lib/ai/systemPrompt.ts`, `ragPipeline.ts`, `safetyFilter.ts`
+6. Create all UI components (Navbar, LanguageSwitcher, StateSelector, ChatInterface, MessageBubble, SuggestedQuestions, ElectionTimeline, PhaseCard, StepFlow)
+7. Create all pages (layout, home, chat, timeline, guide/[topic])
+8. Create API routes (/api/chat, /api/search)
+9. Run `npm run dev` and verify all routes work
+
+---
+
+## CRITICAL REQUIREMENTS
+
+- Every component must be TypeScript with proper types — no `any`
+- All pages must be mobile-responsive (test at 375px width)
+- Chat must actually stream (token by token, not wait for full response)
+- Knowledge base must have complete, accurate information about Indian elections
+- Political neutrality must be enforced — safety filter is non-negotiable
+- Error states: loading spinners, empty states, API error messages — all must be handled
+- The app must work end-to-end with just ANTHROPIC_API_KEY set
+
+---
+
+## DO NOT
+
+- Do not use any paid external services other than Anthropic API
+- Do not require PostgreSQL or Redis — use SQLite/in-memory only
+- Do not use any UI component libraries (no shadcn, no MUI) — build from scratch with Tailwind
+- Do not leave TODO comments — implement everything completely
+- Do not use `any` TypeScript type
+
+---
+
+Start by creating `package.json`, then proceed through the file structure in order. Show me the terminal output after `npm install` completes and after `npm run dev` starts successfully.

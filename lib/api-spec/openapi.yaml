@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: gemini
+    description: Gemini AI chat and image operations
+  - name: election
+    description: Election knowledge and guides
 paths:
   /healthz:
     get:
@@ -24,6 +28,185 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /gemini/conversations:
+    get:
+      operationId: listGeminiConversations
+      tags: [gemini]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeminiConversation"
+    post:
+      operationId: createGeminiConversation
+      tags: [gemini]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGeminiConversationBody"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiConversation"
+  /gemini/conversations/{id}:
+    get:
+      operationId: getGeminiConversation
+      tags: [gemini]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiError"
+    delete:
+      operationId: deleteGeminiConversation
+      tags: [gemini]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiError"
+  /gemini/conversations/{id}/messages:
+    get:
+      operationId: listGeminiMessages
+      tags: [gemini]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeminiMessage"
+    post:
+      operationId: sendGeminiMessage
+      tags: [gemini]
+      summary: Send a message and receive an AI response (SSE stream)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendGeminiMessageBody"
+      responses:
+        "200":
+          description: SSE stream of assistant response chunks
+          content:
+            text/event-stream: {}
+  /election/topics:
+    get:
+      operationId: listElectionTopics
+      tags: [election]
+      summary: List all election knowledge topics
+      responses:
+        "200":
+          description: List of topics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ElectionTopic"
+  /election/topics/{id}:
+    get:
+      operationId: getElectionTopic
+      tags: [election]
+      summary: Get a single election topic with full content
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Election topic detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ElectionTopicDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiError"
+  /election/timeline:
+    get:
+      operationId: getElectionTimeline
+      tags: [election]
+      summary: Get election timeline phases
+      responses:
+        "200":
+          description: Election timeline phases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ElectionPhase"
+  /election/quick-stats:
+    get:
+      operationId: getElectionQuickStats
+      tags: [election]
+      summary: Get quick stats about Indian elections
+      responses:
+        "200":
+          description: Quick election stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ElectionQuickStats"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +216,189 @@ components:
           type: string
       required:
         - status
-
+    GeminiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+    GeminiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+    CreateGeminiConversationBody:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+    SendGeminiMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+    GeminiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeminiMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+    GeminiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    ElectionTopic:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        titleHindi:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - title
+        - titleHindi
+        - description
+        - icon
+        - tags
+    ElectionTopicDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        titleHindi:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        content:
+          type: string
+        steps:
+          type: array
+          items:
+            type: string
+        officialLinks:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              url:
+                type: string
+            required:
+              - label
+              - url
+      required:
+        - id
+        - title
+        - titleHindi
+        - description
+        - icon
+        - tags
+        - content
+        - steps
+        - officialLinks
+    ElectionPhase:
+      type: object
+      properties:
+        phase:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        durationDays:
+          type: integer
+        keyActivities:
+          type: array
+          items:
+            type: string
+      required:
+        - phase
+        - title
+        - description
+        - durationDays
+        - keyActivities
+    ElectionQuickStats:
+      type: object
+      properties:
+        totalVoters:
+          type: string
+        pollingStations:
+          type: string
+        electionStaff:
+          type: string
+        states:
+          type: integer
+        constituencies:
+          type: integer
+        languages:
+          type: integer
+      required:
+        - totalVoters
+        - pollingStations
+        - electionStaff
+        - states
+        - constituencies
+        - languages

@@ -14,3 +14,145 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary List all conversations
+ */
+export const ListGeminiConversationsResponseItem = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListGeminiConversationsResponse = zod.array(
+  ListGeminiConversationsResponseItem,
+);
+
+/**
+ * @summary Create a new conversation
+ */
+export const CreateGeminiConversationBody = zod.object({
+  title: zod.string(),
+});
+
+/**
+ * @summary Get conversation with messages
+ */
+export const GetGeminiConversationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetGeminiConversationResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  createdAt: zod.coerce.date(),
+  messages: zod.array(
+    zod.object({
+      id: zod.number(),
+      conversationId: zod.number(),
+      role: zod.string(),
+      content: zod.string(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Delete a conversation
+ */
+export const DeleteGeminiConversationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List messages in a conversation
+ */
+export const ListGeminiMessagesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListGeminiMessagesResponseItem = zod.object({
+  id: zod.number(),
+  conversationId: zod.number(),
+  role: zod.string(),
+  content: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListGeminiMessagesResponse = zod.array(
+  ListGeminiMessagesResponseItem,
+);
+
+/**
+ * @summary Send a message and receive an AI response (SSE stream)
+ */
+export const SendGeminiMessageParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SendGeminiMessageBody = zod.object({
+  content: zod.string(),
+});
+
+/**
+ * @summary List all election knowledge topics
+ */
+export const ListElectionTopicsResponseItem = zod.object({
+  id: zod.string(),
+  title: zod.string(),
+  titleHindi: zod.string(),
+  description: zod.string(),
+  icon: zod.string(),
+  tags: zod.array(zod.string()),
+});
+export const ListElectionTopicsResponse = zod.array(
+  ListElectionTopicsResponseItem,
+);
+
+/**
+ * @summary Get a single election topic with full content
+ */
+export const GetElectionTopicParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetElectionTopicResponse = zod.object({
+  id: zod.string(),
+  title: zod.string(),
+  titleHindi: zod.string(),
+  description: zod.string(),
+  icon: zod.string(),
+  tags: zod.array(zod.string()),
+  content: zod.string(),
+  steps: zod.array(zod.string()),
+  officialLinks: zod.array(
+    zod.object({
+      label: zod.string(),
+      url: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get election timeline phases
+ */
+export const GetElectionTimelineResponseItem = zod.object({
+  phase: zod.number(),
+  title: zod.string(),
+  description: zod.string(),
+  durationDays: zod.number(),
+  keyActivities: zod.array(zod.string()),
+});
+export const GetElectionTimelineResponse = zod.array(
+  GetElectionTimelineResponseItem,
+);
+
+/**
+ * @summary Get quick stats about Indian elections
+ */
+export const GetElectionQuickStatsResponse = zod.object({
+  totalVoters: zod.string(),
+  pollingStations: zod.string(),
+  electionStaff: zod.string(),
+  states: zod.number(),
+  constituencies: zod.number(),
+  languages: zod.number(),
+});

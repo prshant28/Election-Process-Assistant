@@ -8,3 +8,79 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface GeminiConversation {
+  id: number;
+  title: string;
+  createdAt: string;
+}
+
+export interface GeminiMessage {
+  id: number;
+  conversationId: number;
+  role: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CreateGeminiConversationBody {
+  title: string;
+}
+
+export interface SendGeminiMessageBody {
+  content: string;
+}
+
+export interface GeminiConversationWithMessages {
+  id: number;
+  title: string;
+  createdAt: string;
+  messages: GeminiMessage[];
+}
+
+export interface GeminiError {
+  error: string;
+}
+
+export interface ElectionTopic {
+  id: string;
+  title: string;
+  titleHindi: string;
+  description: string;
+  icon: string;
+  tags: string[];
+}
+
+export type ElectionTopicDetailOfficialLinksItem = {
+  label: string;
+  url: string;
+};
+
+export interface ElectionTopicDetail {
+  id: string;
+  title: string;
+  titleHindi: string;
+  description: string;
+  icon: string;
+  tags: string[];
+  content: string;
+  steps: string[];
+  officialLinks: ElectionTopicDetailOfficialLinksItem[];
+}
+
+export interface ElectionPhase {
+  phase: number;
+  title: string;
+  description: string;
+  durationDays: number;
+  keyActivities: string[];
+}
+
+export interface ElectionQuickStats {
+  totalVoters: string;
+  pollingStations: string;
+  electionStaff: string;
+  states: number;
+  constituencies: number;
+  languages: number;
+}
