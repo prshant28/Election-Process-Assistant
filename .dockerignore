@@ -1,0 +1,11 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+**/dist
+.pnpm-store
+attached_assets
+*.log
+*.tmp
+*.swp
+**/*.tsbuildinfo

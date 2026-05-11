@@ -1,8 +1,5 @@
-import { Router } from "express";
-import { db } from "@workspace/db";
-import { conversations, messages } from "@workspace/db";
+import { Router, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
-import { ai } from "@workspace/integrations-gemini-ai";
 import {
   CreateGeminiConversationBody,
   SendGeminiMessageBody,
@@ -15,9 +12,70 @@ import { getElectionSystemPrompt, isSafeQuery } from "../../lib/electionSystemPr
 
 const router = Router();
 
+type GeminiDependencies = {
+  db: typeof import("@workspace/db").db;
+  conversations: typeof import("@workspace/db").conversations;
+  messages: typeof import("@workspace/db").messages;
+  ai: typeof import("@workspace/integrations-gemini-ai").ai;
+};
+
+function hasGeminiConfiguration(): boolean {
+  return Boolean(
+    process.env.DATABASE_URL &&
+      process.env.AI_INTEGRATIONS_GEMINI_BASE_URL &&
+      process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+  );
+}
+
+async function getGeminiDependencies(): Promise<GeminiDependencies | null> {
+  if (!hasGeminiConfiguration()) {
+    return null;
+  }
+
+  const [dbModule, geminiModule] = await Promise.all([
+    import("@workspace/db"),
+    import("@workspace/integrations-gemini-ai"),
+  ]);
+
+  return {
+    db: dbModule.db,
+    conversations: dbModule.conversations,
+    messages: dbModule.messages,
+    ai: geminiModule.ai,
+  };
+}
+
+async function requireGeminiDependencies(
+  req: Request,
+  res: Response,
+): Promise<GeminiDependencies | null> {
+  const dependencies = await getGeminiDependencies();
+
+  if (dependencies) {
+    return dependencies;
+  }
+
+  req.log.warn(
+    "Gemini routes are unavailable. Set DATABASE_URL, AI_INTEGRATIONS_GEMINI_BASE_URL, and AI_INTEGRATIONS_GEMINI_API_KEY.",
+  );
+  res.status(503).json({
+    error:
+      "Gemini chat is unavailable. Configure DATABASE_URL, AI_INTEGRATIONS_GEMINI_BASE_URL, and AI_INTEGRATIONS_GEMINI_API_KEY.",
+  });
+  return null;
+}
+
 router.get("/conversations", async (req, res) => {
   try {
-    const all = await db.select().from(conversations).orderBy(conversations.createdAt);
+    const deps = await requireGeminiDependencies(req, res);
+    if (!deps) {
+      return;
+    }
+
+    const all = await deps.db
+      .select()
+      .from(deps.conversations)
+      .orderBy(deps.conversations.createdAt);
     res.json(all);
   } catch (err) {
     req.log.error(err);
@@ -27,13 +85,18 @@ router.get("/conversations", async (req, res) => {
 
 router.post("/conversations", async (req, res) => {
   try {
+    const deps = await requireGeminiDependencies(req, res);
+    if (!deps) {
+      return;
+    }
+
     const parsed = CreateGeminiConversationBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid request body" });
       return;
     }
-    const [conv] = await db
-      .insert(conversations)
+    const [conv] = await deps.db
+      .insert(deps.conversations)
       .values({ title: parsed.data.title })
       .returning();
     res.status(201).json(conv);
@@ -45,25 +108,30 @@ router.post("/conversations", async (req, res) => {
 
 router.get("/conversations/:id", async (req, res) => {
   try {
+    const deps = await requireGeminiDependencies(req, res);
+    if (!deps) {
+      return;
+    }
+
     const params = GetGeminiConversationParams.safeParse({ id: req.params.id });
     if (!params.success) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
-    const conv = await db
+    const conv = await deps.db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, params.data.id))
+      .from(deps.conversations)
+      .where(eq(deps.conversations.id, params.data.id))
       .limit(1);
     if (!conv.length) {
       res.status(404).json({ error: "Conversation not found" });
       return;
     }
-    const msgs = await db
+    const msgs = await deps.db
       .select()
-      .from(messages)
-      .where(eq(messages.conversationId, params.data.id))
-      .orderBy(messages.createdAt);
+      .from(deps.messages)
+      .where(eq(deps.messages.conversationId, params.data.id))
+      .orderBy(deps.messages.createdAt);
     res.json({ ...conv[0], messages: msgs });
   } catch (err) {
     req.log.error(err);
@@ -73,14 +141,19 @@ router.get("/conversations/:id", async (req, res) => {
 
 router.delete("/conversations/:id", async (req, res) => {
   try {
+    const deps = await requireGeminiDependencies(req, res);
+    if (!deps) {
+      return;
+    }
+
     const params = DeleteGeminiConversationParams.safeParse({ id: req.params.id });
     if (!params.success) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
-    const deleted = await db
-      .delete(conversations)
-      .where(eq(conversations.id, params.data.id))
+    const deleted = await deps.db
+      .delete(deps.conversations)
+      .where(eq(deps.conversations.id, params.data.id))
       .returning();
     if (!deleted.length) {
       res.status(404).json({ error: "Conversation not found" });
@@ -95,16 +168,21 @@ router.delete("/conversations/:id", async (req, res) => {
 
 router.get("/conversations/:id/messages", async (req, res) => {
   try {
+    const deps = await requireGeminiDependencies(req, res);
+    if (!deps) {
+      return;
+    }
+
     const params = ListGeminiMessagesParams.safeParse({ id: req.params.id });
     if (!params.success) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
-    const msgs = await db
+    const msgs = await deps.db
       .select()
-      .from(messages)
-      .where(eq(messages.conversationId, params.data.id))
-      .orderBy(messages.createdAt);
+      .from(deps.messages)
+      .where(eq(deps.messages.conversationId, params.data.id))
+      .orderBy(deps.messages.createdAt);
     res.json(msgs);
   } catch (err) {
     req.log.error(err);
@@ -114,6 +192,11 @@ router.get("/conversations/:id/messages", async (req, res) => {
 
 router.post("/conversations/:id/messages", async (req, res) => {
   try {
+    const deps = await requireGeminiDependencies(req, res);
+    if (!deps) {
+      return;
+    }
+
     const params = SendGeminiMessageParams.safeParse({ id: req.params.id });
     const body = SendGeminiMessageBody.safeParse(req.body);
     if (!params.success || !body.success) {
@@ -124,10 +207,10 @@ router.post("/conversations/:id/messages", async (req, res) => {
     const convId = params.data.id;
     const userContent = body.data.content;
 
-    const conv = await db
+    const conv = await deps.db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, convId))
+      .from(deps.conversations)
+      .where(eq(deps.conversations.id, convId))
       .limit(1);
     if (!conv.length) {
       res.status(404).json({ error: "Conversation not found" });
@@ -146,17 +229,17 @@ router.post("/conversations/:id/messages", async (req, res) => {
       return;
     }
 
-    await db.insert(messages).values({
+    await deps.db.insert(deps.messages).values({
       conversationId: convId,
       role: "user",
       content: userContent,
     });
 
-    const chatHistory = await db
+    const chatHistory = await deps.db
       .select()
-      .from(messages)
-      .where(eq(messages.conversationId, convId))
-      .orderBy(messages.createdAt);
+      .from(deps.messages)
+      .where(eq(deps.messages.conversationId, convId))
+      .orderBy(deps.messages.createdAt);
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -164,14 +247,14 @@ router.post("/conversations/:id/messages", async (req, res) => {
 
     const systemPrompt = getElectionSystemPrompt();
 
-    const geminiMessages = chatHistory.map((m) => ({
+    const geminiMessages = chatHistory.map((m: { role: string; content: string }) => ({
       role: m.role === "assistant" ? "model" : ("user" as "user" | "model"),
       parts: [{ text: m.content }],
     }));
 
     let fullResponse = "";
 
-    const stream = await ai.models.generateContentStream({
+    const stream = await deps.ai.models.generateContentStream({
       model: "gemini-2.5-flash",
       contents: geminiMessages,
       config: {
@@ -188,7 +271,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
       }
     }
 
-    await db.insert(messages).values({
+    await deps.db.insert(deps.messages).values({
       conversationId: convId,
       role: "assistant",
       content: fullResponse,
