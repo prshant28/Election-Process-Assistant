@@ -1,6 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "node:path";
+import { existsSync } from "node:fs";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -30,5 +32,32 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+const frontendDistPath = path.resolve(
+  process.cwd(),
+  "artifacts/election-assistant/dist/public",
+);
+const frontendIndexPath = path.resolve(frontendDistPath, "index.html");
+
+if (existsSync(frontendIndexPath)) {
+  app.use(express.static(frontendDistPath));
+  app.use((req, res, next) => {
+    const acceptsHtml = Boolean(req.accepts("html"));
+    if (
+      req.method !== "GET" ||
+      req.path.startsWith("/api") ||
+      !acceptsHtml
+    ) {
+      next();
+      return;
+    }
+    res.sendFile(frontendIndexPath);
+  });
+} else {
+  logger.warn(
+    { frontendDistPath },
+    "Frontend build output not found. Static files are not being served.",
+  );
+}
 
 export default app;
