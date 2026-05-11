@@ -166,7 +166,7 @@ export default function Home() {
                   key={topic.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: i * 0.05 }}
+                  transition={{ duration: 0.4, delay: i * 0.1 }}
                 >
                   <Link href={`/guide/${topic.id}`}>
                     <Card className="h-full cursor-pointer transition-all hover:shadow-md hover:border-primary/20 group hover:-translate-y-1">

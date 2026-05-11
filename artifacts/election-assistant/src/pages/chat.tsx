@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { 
   useListGeminiConversations, 
   useCreateGeminiConversation, 
@@ -16,6 +16,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { apiUrl } from "@/lib/api-url";
+import { normalizeConversations, normalizeMessages } from "@/lib/safe-data";
 
 const SUGGESTED_QUESTIONS = [
   "How do I register to vote?",
@@ -42,8 +43,8 @@ export default function Chat() {
 
   const createConversation = useCreateGeminiConversation();
   const deleteConversation = useDeleteGeminiConversation();
-  const safeConversations = Array.isArray(conversations) ? conversations : [];
-  const safeMessages = Array.isArray(messages) ? messages : [];
+  const safeConversations = useMemo(() => normalizeConversations(conversations), [conversations]);
+  const safeMessages = useMemo(() => normalizeMessages(messages), [messages]);
 
   useEffect(() => {
     if (safeConversations.length > 0 && !activeConversationId) {

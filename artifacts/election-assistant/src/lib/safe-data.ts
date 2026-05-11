@@ -1,4 +1,4 @@
-import type { ElectionPhase, ElectionTopic, ElectionTopicDetail } from "@workspace/api-client-react";
+import type { ElectionPhase, ElectionTopic, ElectionTopicDetail, GeminiConversation, GeminiMessage } from "@workspace/api-client-react";
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
@@ -60,5 +60,29 @@ export function normalizeTimeline(value: unknown): ElectionPhase[] {
       description: asString(phase.description, ""),
       durationDays: asNumber(phase.durationDays, 0),
       keyActivities: asStringArray(phase.keyActivities),
+    }));
+}
+
+export function normalizeConversations(value: unknown): GeminiConversation[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((conversation): conversation is Record<string, unknown> => Boolean(conversation && typeof conversation === "object"))
+    .map((conversation, index) => ({
+      id: asNumber(conversation.id, index + 1),
+      title: asString(conversation.title, "New Conversation"),
+      createdAt: asString(conversation.createdAt, ""),
+    }));
+}
+
+export function normalizeMessages(value: unknown): GeminiMessage[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((message): message is Record<string, unknown> => Boolean(message && typeof message === "object"))
+    .map((message, index) => ({
+      id: asNumber(message.id, index + 1),
+      conversationId: asNumber(message.conversationId, 0),
+      role: asString(message.role, "assistant"),
+      content: asString(message.content, ""),
+      createdAt: asString(message.createdAt, ""),
     }));
 }
