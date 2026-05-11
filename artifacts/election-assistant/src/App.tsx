@@ -9,6 +9,7 @@ import Chat from "@/pages/chat";
 import Timeline from "@/pages/timeline";
 import Topics from "@/pages/topics";
 import Guide from "@/pages/guide";
+import ErrorBoundary from "@/components/error-boundary";
 
 const queryClient = new QueryClient();
 
@@ -31,9 +32,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
+        <ErrorBoundary>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+        </ErrorBoundary>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

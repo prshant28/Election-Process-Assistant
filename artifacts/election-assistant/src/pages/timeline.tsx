@@ -2,11 +2,14 @@ import { useGetElectionTimeline } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle2, ArrowRight } from "lucide-react";
+import { Clock, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useMemo } from "react";
+import { normalizeTimeline } from "@/lib/safe-data";
 
 export default function Timeline() {
   const { data: timeline, isLoading } = useGetElectionTimeline();
+  const safeTimeline = useMemo(() => normalizeTimeline(timeline), [timeline]);
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl">
@@ -31,8 +34,8 @@ export default function Timeline() {
               </Card>
             </div>
           ))
-        ) : timeline ? (
-          timeline.map((phase, i) => (
+        ) : safeTimeline.length > 0 ? (
+          safeTimeline.map((phase, i) => (
             <motion.div 
               key={phase.phase}
               initial={{ opacity: 0, x: -20 }}

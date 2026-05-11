@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserCheck, Calendar, Vote, Monitor, BarChart2, BookOpen, HelpCircle, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
-import React from "react";
+import React, { useMemo } from "react";
+import { normalizeTopics } from "@/lib/safe-data";
 
 const iconMap: Record<string, React.ElementType> = {
   UserCheck,
@@ -17,6 +18,7 @@ const iconMap: Record<string, React.ElementType> = {
 
 export default function Topics() {
   const { data: topics, isLoading } = useListElectionTopics();
+  const safeTopics = useMemo(() => normalizeTopics(topics), [topics]);
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">
@@ -39,8 +41,8 @@ export default function Topics() {
               </CardContent>
             </Card>
           ))
-        ) : topics ? (
-          topics.map((topic, i) => {
+        ) : safeTopics.length > 0 ? (
+          safeTopics.map((topic, i) => {
             const Icon = iconMap[topic.icon] || HelpCircle;
             return (
               <motion.div
