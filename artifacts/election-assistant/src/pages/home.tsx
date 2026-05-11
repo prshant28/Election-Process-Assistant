@@ -62,12 +62,12 @@ export default function Home() {
               ))
             ) : stats ? (
               <>
-                <StatItem value={stats.totalVoters} label="Total Voters" />
-                <StatItem value={stats.pollingStations} label="Polling Stations" />
-                <StatItem value={stats.electionStaff} label="Election Staff" />
-                <StatItem value={stats.constituencies.toString()} label="Constituencies" />
-                <StatItem value={stats.states.toString()} label="States/UTs" />
-                <StatItem value={stats.languages.toString()} label="Languages" />
+                <StatItem value={formatStatValue(stats.totalVoters)} label="Total Voters" />
+                <StatItem value={formatStatValue(stats.pollingStations)} label="Polling Stations" />
+                <StatItem value={formatStatValue(stats.electionStaff)} label="Election Staff" />
+                <StatItem value={formatStatValue(stats.constituencies)} label="Constituencies" />
+                <StatItem value={formatStatValue(stats.states)} label="States/UTs" />
+                <StatItem value={formatStatValue(stats.languages)} label="Languages" />
               </>
             ) : null}
           </div>
@@ -140,6 +140,12 @@ export default function Home() {
       </Link>
     </div>
   );
+}
+
+function formatStatValue(value: string | number | null | undefined): string {
+  if (typeof value === "number") return value.toString();
+  if (typeof value === "string" && value.trim() !== "") return value;
+  return "N/A";
 }
 
 function StatItem({ value, label }: { value: string; label: string }) {
