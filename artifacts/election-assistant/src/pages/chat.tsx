@@ -42,12 +42,14 @@ export default function Chat() {
 
   const createConversation = useCreateGeminiConversation();
   const deleteConversation = useDeleteGeminiConversation();
+  const safeConversations = Array.isArray(conversations) ? conversations : [];
+  const safeMessages = Array.isArray(messages) ? messages : [];
 
   useEffect(() => {
-    if (conversations && conversations.length > 0 && !activeConversationId) {
-      setActiveConversationId(conversations[0].id);
+    if (safeConversations.length > 0 && !activeConversationId) {
+      setActiveConversationId(safeConversations[0].id);
     }
-  }, [conversations, activeConversationId]);
+  }, [safeConversations, activeConversationId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -146,7 +148,7 @@ export default function Chat() {
     await sendMessage(currentId, textToSend);
   };
 
-  const hasMessages = messages && messages.length > 0;
+  const hasMessages = safeMessages.length > 0;
   const showSuggestions = !hasMessages && !isStreaming && !streamingText;
 
   return (
@@ -185,7 +187,7 @@ export default function Chat() {
         </div>
         <ScrollArea className="flex-1 px-2">
           <div className="space-y-1 pb-4">
-            {conversations?.map((conv) => (
+            {safeConversations.map((conv) => (
               <div 
                 key={conv.id}
                 onClick={() => { setActiveConversationId(conv.id); if (window.innerWidth < 768) setSidebarOpen(false); }}
@@ -251,7 +253,7 @@ export default function Chat() {
             </div>
           ) : null}
 
-          {messages?.map((msg) => (
+          {safeMessages.map((msg) => (
             <motion.div 
               key={msg.id}
               initial={{ opacity: 0, y: 10 }}
