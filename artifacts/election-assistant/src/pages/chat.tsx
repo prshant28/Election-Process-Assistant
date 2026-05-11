@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { apiUrl } from "@/lib/api-url";
 
 const SUGGESTED_QUESTIONS = [
   "How do I register to vote?",
@@ -83,7 +84,7 @@ export default function Chat() {
       setIsStreaming(true);
       setStreamingText("");
       
-      const response = await fetch(`/api/gemini/conversations/${conversationId}/messages`, {
+      const response = await fetch(apiUrl(`/api/gemini/conversations/${conversationId}/messages`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content })

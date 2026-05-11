@@ -100,7 +100,7 @@ export default function Home() {
               </Card>
             ))
           ) : topics ? (
-            topics.slice(0, 6).map((topic, i) => {
+            (Array.isArray(topics) ? topics : []).slice(0, 6).map((topic, i) => {
               const Icon = iconMap[topic.icon] || HelpCircle;
               return (
                 <motion.div
