@@ -42,7 +42,12 @@ const frontendIndexPath = path.resolve(frontendDistPath, "index.html");
 if (existsSync(frontendIndexPath)) {
   app.use(express.static(frontendDistPath));
   app.use((req, res, next) => {
-    if (req.method !== "GET" || req.path.startsWith("/api")) {
+    const acceptsHtml = Boolean(req.accepts("html"));
+    if (
+      req.method !== "GET" ||
+      req.path.startsWith("/api") ||
+      !acceptsHtml
+    ) {
       next();
       return;
     }
