@@ -2,7 +2,7 @@ import { useGetElectionTimeline } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle2, ArrowRight } from "lucide-react";
+import { Clock, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMemo } from "react";
 import { normalizeTimeline } from "@/lib/safe-data";
